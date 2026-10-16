@@ -3,7 +3,7 @@
 //! `cargo run --bin reset-password -- <username> <new-password>`
 //!
 //! Resets a single FOSUser row's password hash to a new value, using
-//! the same FOSUserBundle scheme the login handler verifies against
+//! the 5000-iteration FOSUserBundle variant supported by the login handler
 //! (sha512 over `password{salt}` iterated 5000×, base64). Looks up
 //! by either `username` or `username_canonical` so casing doesn't
 //! matter.
@@ -131,10 +131,14 @@ async fn main() -> ExitCode {
 /// digest = sha512(salted), then 4999 more iterations of
 /// sha512(prev_digest || salted), final result base64-encoded.
 ///
-/// Mirrors `verify_fos_password` in `handlers/auth.rs`. Keep them in
-/// sync; if either is changed, both must change.
+/// The verifier in `handlers/auth.rs` accepts this variant as well as
+/// original PartKeepr single-iteration hashes. Empty salts are omitted.
 fn hash_fos_password(password: &str, salt: &str) -> String {
-    let salted = format!("{password}{{{salt}}}");
+    let salted = if salt.is_empty() {
+        password.to_owned()
+    } else {
+        format!("{password}{{{salt}}}")
+    };
     let salted_bytes = salted.as_bytes();
     let mut digest = Sha512::digest(salted_bytes).to_vec();
     for _ in 1..5000 {
@@ -144,4 +148,21 @@ fn hash_fos_password(password: &str, salt: &str) -> String {
         digest = h.finalize().to_vec();
     }
     base64::engine::general_purpose::STANDARD.encode(&digest)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::hash_fos_password;
+
+    #[test]
+    fn matches_symfony_5000_iteration_fixtures() {
+        assert_eq!(
+            hash_fos_password("migration-test-password", "fixture-salt"),
+            "yHgCQ7ColvqcV6tDjMXCWqG9z2iwnS04Kat228jJB5PjtOAOPnshKwxjQLYV72Jq/Z0dXbk32gGiFCxjQSNIuw=="
+        );
+        assert_eq!(
+            hash_fos_password("migration-test-password", ""),
+            "t6IMG9m1WloOJoNUlEHdxZncGEmOgYKjuZ2Cc132ouOL3jVIwlMBJ0h1Q48SzCSBR81PvCMFzI8Y0kwS/v0dDA=="
+        );
+    }
 }

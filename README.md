@@ -38,8 +38,8 @@ The core PartKeepr 1.4.0 surface is fully preserved:
 - **Attachments** (datasheets, photos, BOM files) with optional clamd
   virus scanning, thumbnails, and inline upload-by-URL.
 - **Auth** compatible with the upstream FOSUserBundle password hashes
-  (sha512 + 5000-iter + per-user salt), so existing user accounts log
-  in unchanged.
+  (SHA-512 + per-user salt; original single-iteration and 5000-iteration
+  hashes), so existing user accounts log in unchanged.
 
 And several additions on top:
 

@@ -20,7 +20,8 @@ goes wrong, you still have your original database to fall back to.
   schema.
 - All your `Part`, `PartCategory`, `StorageLocation`, `Manufacturer`,
   `Distributor`, `StockEntry`, `Project`, `ProjectRun`, etc., rows.
-- `FOSUser` password hashes (sha512 + 5000 iter + per-user salt).
+- `FOSUser` password hashes (SHA-512 + per-user salt; original
+  single-iteration and 5000-iteration hashes are both accepted).
   Existing user accounts log in unchanged.
 - The on-disk file layout: `data/files/PartAttachment/{uuid}.{ext}`,
   `data/images/iclogo/{uuid}.{ext}`, etc. partkeepr-ng reads from the
