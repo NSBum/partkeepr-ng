@@ -110,13 +110,19 @@ function mountShell(user) {
         rows: [
             buildHeader(user),
             {
-                cols: [
-                    buildLeftPane(),
-                    { view: "resizer" },
-                    buildCenterPane(),
-                    { view: "resizer" },
-                    buildRightPane(),
-                ],
+                // Keep the workspace's minimum width from pushing header
+                // actions beyond the viewport on smaller windows.
+                view: "scrollview",
+                scroll: "x",
+                body: {
+                    cols: [
+                        buildLeftPane(),
+                        { view: "resizer" },
+                        buildCenterPane(),
+                        { view: "resizer" },
+                        buildRightPane(),
+                    ],
+                },
             },
         ],
     });
@@ -182,7 +188,9 @@ function buildHeader(user) {
                 view: "search",
                 id: "pk-scan",
                 placeholder: "🔍 Scan / search IPN…",
-                width: 280,
+                minWidth: 140,
+                maxWidth: 280,
+                gravity: 2,
                 on: {
                     onSearchIconClick: function () { handleScan(this.getValue()); this.setValue(""); },
                     // Webix's onEnter doesn't always fire when the
@@ -212,8 +220,8 @@ function buildHeader(user) {
               tooltip: "Open scan-capture overlay. Suppresses browser shortcuts (Alt+digit, Ctrl+T, ...) so HID scanners that emit control chars via Alt+digit don't trigger tab-switching.",
               click: () => openScanCaptureOverlay() },
             { view: "button", value: "🖨 Label", width: 100, click: () => openLabelDialog({ template: "Custom" }) },
-            { view: "label", label: userHtml, width: 220 },
-            { view: "button", value: "Sign out", width: 100, click: doLogout },
+            { view: "label", label: userHtml, minWidth: 80, maxWidth: 160 },
+            { view: "button", id: "pk-sign-out", value: "Sign out", width: 100, click: doLogout },
         ],
     };
 }
