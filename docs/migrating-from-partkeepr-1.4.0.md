@@ -10,9 +10,10 @@ install can be migrated by:
 4. Rsyncing your file-storage tree.
 5. Pointing partkeepr-ng at it.
 
-No data is touched destructively. The migration adds new tables and
-nullable columns; existing rows keep working unchanged. If something
-goes wrong, you still have your original database to fall back to.
+Always migrate a copy of the database. Most migrations add tables or
+nullable columns, but some update existing rows, and migration `0005`
+reassigns reel/cut-tape units and deletes specific unit rows. Your
+original database remains available for rollback when you work on a copy.
 
 ## What's preserved verbatim
 
@@ -23,9 +24,9 @@ goes wrong, you still have your original database to fall back to.
 - `FOSUser` password hashes (SHA-512 + per-user salt; original
   single-iteration and 5000-iteration hashes are both accepted).
   Existing user accounts log in unchanged.
-- The on-disk file layout: `data/files/PartAttachment/{uuid}.{ext}`,
-  `data/images/iclogo/{uuid}.{ext}`, etc. partkeepr-ng reads from the
-  same paths as upstream.
+- Original attachment and image filenames. The import maps upstream
+  directories into the entity-named directories expected by partkeepr-ng;
+  see step 4. Files do not need to be renamed.
 
 ## What's added
 
@@ -41,10 +42,9 @@ prefix order:
 | `0005-partunit-cleanup.sql` | Drops vestigial reel/cut-tape PartUnit rows (their role is now played by `PartStorageLocation.form`); seeds standard measurement units (Metres, Litres, Kilograms, etc.). |
 | `0006-stock-entry-container-tracking.sql` | Adds nullable `StockEntry.partStorageLocation_id` FK. Lets the system tie each receipt/draw to a specific physical container. |
 
-All migrations are additive (new tables, nullable columns, INSERTs).
-Running one twice fails loudly on the duplicate `ALTER TABLE` /
-`CREATE TABLE`, not silently — re-running the wrapper after a fix is
-generally safe, but expect noisy errors past the point of last success.
+Apply the migrations in order, once, to the restored copy. Several are
+idempotent, but `0006` is not: repeating it can fail on a duplicate column,
+index, or foreign key. The wrapper does not track which files were applied.
 
 ## Step-by-step
 
@@ -103,25 +103,51 @@ done
 (Glob order matches the dependency order — current file names sort
 correctly.)
 
-If a migration fails partway through, the rest of that file rolls back
-(`ALTER TABLE` is atomic per statement on InnoDB). Earlier migrations
-that succeeded stay applied. Re-running after fixing the issue is
-generally safe — failed `ALTER`s leave nothing behind.
+If a migration fails partway through, earlier statements can remain
+applied: a SQL file is not one transaction, and DDL statements can commit
+implicitly. Inspect the database before resuming. Apply only the remaining
+statements, or restore a fresh copy and start again.
 
-### 4. Rsync the file storage tree
+### 4. Import attachments and images
+
+An archive created with `tar -czf ... -C /app data` contains a top-level
+`data/` directory. Extract it into a staging directory first:
 
 ```bash
-# On the target:
-mkdir -p /var/lib/partkeepr-ng/files
-tar -xzf /tmp/partkeepr-files.tar.gz -C /var/lib/partkeepr-ng/
+mkdir -p /tmp/partkeepr-import
+tar --no-same-owner -xzf /tmp/partkeepr-files.tar.gz -C /tmp/partkeepr-import
 
-# Files now live at /var/lib/partkeepr-ng/files/PartAttachment/...
-# images/ likewise.
+export PARTKEEPR_STORAGE_DIR="$HOME/.local/share/partkeepr-ng/files"
+bash scripts/import-legacy-files.sh /tmp/partkeepr-import/data
 ```
 
-The `data/files/Temporary/` and `data/images/cache/` and
-`data/images/temp/` subtrees can be skipped — they're transient on the
-PartKeepr side and partkeepr-ng doesn't read them.
+The existing import script maps these paths, preserving filenames:
+
+| Original directory under `data/` | Directory under `PARTKEEPR_STORAGE_DIR` |
+|---|---|
+| `files/PartAttachment` | `PartAttachment` |
+| `files/FootprintAttachment` | `FootprintAttachment` |
+| `images/footprint` | `FootprintImage` |
+| `images/iclogo` | `ManufacturerICLogo` |
+| `images/storagelocation` | `StorageLocationImage` |
+
+If your archive also includes `files/ProjectAttachment`, copy it separately:
+
+```bash
+if [ -d /tmp/partkeepr-import/data/files/ProjectAttachment ]; then
+    mkdir -p "$PARTKEEPR_STORAGE_DIR/ProjectAttachment"
+    rsync -a /tmp/partkeepr-import/data/files/ProjectAttachment/ \
+        "$PARTKEEPR_STORAGE_DIR/ProjectAttachment/"
+fi
+```
+
+The backend reads, for example,
+`$PARTKEEPR_STORAGE_DIR/ManufacturerICLogo/{uuid}.{ext}`; pointing it at
+an unmodified `data/` or `data/files/` tree will not find legacy images.
+Set the same storage directory in your backend configuration and ensure
+the account running the backend can read and write it. The backend
+regenerates thumbnails when requested. Temporary files and image caches
+are not required; retain the original archive as a backup.
 
 ### 5. Configure and start the backend
 
@@ -135,7 +161,7 @@ Required:
 ```env
 DATABASE_URL=mysql://partkeepr_ng:<password>@localhost:3306/partkeepr_ng
 PARTKEEPR_SESSION_SECRET=<openssl rand -base64 48>
-PARTKEEPR_STORAGE_DIR=/var/lib/partkeepr-ng/files
+PARTKEEPR_STORAGE_DIR=/absolute/path/to/your/imported/files
 ```
 
 Optional (leave unset to disable the corresponding feature):
@@ -185,8 +211,10 @@ Add a corresponding `PartKeeprUser` row for any user you want to keep.
 
 ## Rollback
 
-partkeepr-ng never deletes data and never modifies upstream columns. If
-you decide to go back to PartKeepr 1.4.0:
+The safest rollback is the untouched original database and file tree.
+Dropping the added tables and columns does not undo migration backfills,
+unit cleanup, or edits made through the new app. If you decide to go back
+to PartKeepr 1.4.0:
 
 1. Stop the `partkeepr-ng` service.
 2. Re-point your 1.4.0 install at the original DB. The new tables
