@@ -1,0 +1,19 @@
+[Unit]
+Description=PartKeepr NG native web application
+Requires=partkeepr-ng-db.service
+After=partkeepr-ng-db.service
+
+[Service]
+Type=simple
+WorkingDirectory=%h/partkeepr-ng/local-install/native
+EnvironmentFile=%h/partkeepr-ng/local-install/native/app.env
+ExecStart=%h/partkeepr-ng/local-install/native/bin/partkeepr-api
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=default.target

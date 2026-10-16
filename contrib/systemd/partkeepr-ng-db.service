@@ -1,0 +1,20 @@
+[Unit]
+Description=PartKeepr NG native MariaDB
+
+[Service]
+Type=notify
+WorkingDirectory=%h/partkeepr-ng/local-install/native
+Environment=LD_LIBRARY_PATH=%h/partkeepr-ng/local-install/native/mariadb/usr/lib/x86_64-linux-gnu
+ExecStart=%h/partkeepr-ng/local-install/native/mariadb/usr/sbin/mariadbd --defaults-file=%h/partkeepr-ng/local-install/native/mariadb.cnf
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=120
+TimeoutStopSec=120
+RuntimeDirectory=partkeepr-ng-db
+RuntimeDirectoryMode=0700
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=default.target

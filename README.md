@@ -120,6 +120,12 @@ API integrations (Digi-Key, Mouser, TrustedParts, jlcparts) all start
 disabled and need their env vars set. The app boots clean without any
 of them.
 
+## Native deployment
+
+Docker is optional. The app and MariaDB can run as persistent systemd user
+services; see [native deployment](docs/native-systemd.md) for service templates,
+configuration, backups, and an isolated MariaDB setup alongside existing MySQL.
+
 ## Optional features — provisioning
 
 ### LCSC / JLCPCB cross-reference (jlcparts)

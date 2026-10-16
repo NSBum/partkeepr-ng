@@ -1,0 +1,13 @@
+[mariadbd]
+basedir=@CHECKOUT@/local-install/native/mariadb/usr
+datadir=@CHECKOUT@/local-install/native/database
+plugin-dir=@CHECKOUT@/local-install/native/mariadb/usr/lib/mysql/plugin
+lc-messages-dir=@CHECKOUT@/local-install/native/mariadb/usr/share/mysql
+socket=@RUNTIME_DIR@/partkeepr-ng-db/mysql.sock
+pid-file=@RUNTIME_DIR@/partkeepr-ng-db/mysql.pid
+bind-address=127.0.0.1
+port=3307
+skip-name-resolve
+character-set-server=utf8mb3
+collation-server=utf8mb3_unicode_ci
+innodb-buffer-pool-size=128M

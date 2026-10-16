@@ -8,6 +8,8 @@ frontend/dist/
 # Dev secrets and local-only env
 backend/.env
 frontend/.env
+# Native deployment credentials, databases, uploads, packages, and backups.
+/local-install/
 
 # Upstream reference clone — re-clone via:
 #   cd reference && git clone https://github.com/partkeepr/PartKeepr.git
