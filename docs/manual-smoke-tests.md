@@ -266,3 +266,29 @@ and `POST /api/me/password`. Each resolves the account from the session, never a
 client-supplied user ID. Password changes rotate the salt and invalidate sessions
 by comparing a password-hash version in the signed cookie with the database.
 Cookies created before this version field was introduced require a fresh login.
+
+
+## API keys
+
+- Sign in and open username → API keys. Create a named read-only key with an
+  expiry. Copy the one-time secret, close and reopen, and confirm only its prefix
+  remains. List responses must never include a full key or stored hash.
+- Use `Authorization: Bearer <key>` without cookies to GET parts and download a
+  file. Confirm `/api/me` identifies the correct owner and no session cookie is
+  issued. Check the manager's last-used timestamp after refreshing.
+- Confirm a read-only key rejects POST/PUT/PATCH/DELETE with 403. A read/write
+  key must be able to create and remove a disposable test project, with the
+  project's `user_id` matching the key owner.
+- Neither key type may access profile, preferences, password, or API-key
+  management endpoints. An invalid bearer token plus a valid cookie must return
+  401 rather than fall back to the cookie. Cookie-only clients must still work.
+- Rename and revoke a key. Its next request must return 401; the browser session
+  must still work. Repeated revocation is harmless. Expired keys and keys for
+  disabled/locked/inactive accounts must also return 401.
+- With two disposable accounts, verify list and modification isolation (another
+  user's key ID returns 404). With an administrator, assign a key to the other
+  account and confirm its identity, then revoke it. Ordinary users must be
+  unable to assign a key to another account.
+- Confirm the menu, secret selection/copy fallback, rename and revoke dialogs
+  work at 800px and desktop widths, including keyboard navigation. Remove all
+  temporary users, keys, and projects after testing.

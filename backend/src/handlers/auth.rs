@@ -16,7 +16,7 @@
 
 use axum::{
     extract::{Request, State},
-    http::StatusCode,
+    http::{header, Method, StatusCode},
     middleware::Next,
     response::{IntoResponse, Response},
     Json,
@@ -41,6 +41,23 @@ const SESSION_TTL_HOURS: i64 = 12;
 
 /// Paths that bypass auth. Order doesn't matter; we exact-match.
 const PUBLIC_PATHS: &[&str] = &["/health", "/api/login"];
+
+/// Separate provenance from identity so a bearer credential cannot manage accounts.
+#[derive(Clone, Copy, PartialEq)]
+pub enum AuthMethod {
+    Session,
+    ApiKey,
+}
+
+pub async fn session_only(req: Request, next: Next) -> Response {
+    if req.extensions().get::<AuthMethod>() != Some(&AuthMethod::Session) {
+        return AppError::Forbidden(
+            "Sign in with your password to manage account settings and API keys.",
+        )
+        .into_response();
+    }
+    next.run(req).await
+}
 
 // ---------------------------------------------------------------------------
 //  Session payload
@@ -433,6 +450,42 @@ pub async fn auth_middleware(
         return next.run(req).await;
     }
 
+    // An explicitly supplied credential takes precedence: never fall back to a
+    // browser cookie when a caller supplied an invalid Authorization header.
+    if req.headers().contains_key(header::AUTHORIZATION) {
+        let values = req.headers().get_all(header::AUTHORIZATION);
+        let mut values = values.iter();
+        let token = values.next().and_then(|v| v.to_str().ok()).and_then(|v| {
+            let mut fields = v.split_whitespace();
+            match (fields.next(), fields.next(), fields.next()) {
+                (Some(scheme), Some(token), None) if scheme.eq_ignore_ascii_case("bearer") => {
+                    Some(token)
+                }
+                _ => None,
+            }
+        });
+        let token = match token {
+            Some(token) if values.next().is_none() => token,
+            _ => {
+                return AppError::Unauthorized("Use Authorization: Bearer <api-key>.")
+                    .into_response()
+            }
+        };
+        let (user, read_only, key_id) = match super::api_keys::authenticate(&pool, token).await {
+            Ok(identity) => identity,
+            Err(error) => return error.into_response(),
+        };
+        if read_only && req.method() != Method::GET && req.method() != Method::HEAD {
+            return AppError::Forbidden("This API key has read-only access.").into_response();
+        }
+        if let Err(error) = super::api_keys::record_use(&pool, key_id).await {
+            return error.into_response();
+        }
+        req.extensions_mut().insert(AuthMethod::ApiKey);
+        req.extensions_mut().insert(user);
+        return next.run(req).await;
+    }
+
     let cookie = jar.get(SESSION_COOKIE);
     match cookie.and_then(|c| signer.decode(c.value())) {
         Some(user) => {
@@ -464,6 +517,7 @@ pub async fn auth_middleware(
                 is_admin,
                 ..user
             };
+            req.extensions_mut().insert(AuthMethod::Session);
             req.extensions_mut().insert(user);
             next.run(req).await
         }

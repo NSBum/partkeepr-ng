@@ -23,6 +23,7 @@ mkdir -p "${DIST_DIR}"
 
 # Backend code + lockfile.
 cp -r backend "${DIST_DIR}/"
+cp Cargo.lock "${DIST_DIR}/backend/Cargo.lock"
 rm -rf "${DIST_DIR}/backend/target"
 rm -f  "${DIST_DIR}/backend/.env"        # never ship the dev env
 
@@ -35,6 +36,8 @@ mkdir -p "${DIST_DIR}/scripts"
 cp scripts/migrate-from-upstream.sh \
    scripts/jlcparts-sync.sh \
    scripts/setup-jlcparts-paths.sh \
+   scripts/backup-native.sh \
+   scripts/test-api-keys.py \
    "${DIST_DIR}/scripts/"
 cp -r scripts/migrations    "${DIST_DIR}/scripts/"
 cp -r scripts/jlcparts-build "${DIST_DIR}/scripts/"
@@ -43,6 +46,8 @@ cp -r scripts/jlcparts-build "${DIST_DIR}/scripts/"
 mkdir -p "${DIST_DIR}/docs"
 cp docs/migrating-from-partkeepr-1.4.0.md "${DIST_DIR}/docs/"
 cp docs/manual-smoke-tests.md             "${DIST_DIR}/docs/"
+cp docs/api-keys.md docs/native-systemd.md docs/versioning.md "${DIST_DIR}/docs/"
+cp -r contrib "${DIST_DIR}/"
 cp -r docs/man                            "${DIST_DIR}/docs/"
 cp README.md LICENSE                      "${DIST_DIR}/"
 [[ -f CHANGELOG.md ]] && cp CHANGELOG.md  "${DIST_DIR}/" || true
@@ -52,7 +57,7 @@ cp README.md LICENSE                      "${DIST_DIR}/"
 # cargo vendor outputs to <dir>/vendor; we want it relative to the
 # backend manifest because that's where cargo build runs from.
 ( cd "${DIST_DIR}/backend" \
-  && cargo vendor --quiet >/dev/null )
+  && cargo vendor --locked --quiet >/dev/null )
 
 # Tell cargo to use the vendored copy when building. The .cargo/config.toml
 # goes next to the manifest.

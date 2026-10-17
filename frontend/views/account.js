@@ -23,11 +23,13 @@ function openAccountMenu(anchor) {
                     { id: "profile", value: "My profile" },
                     { id: "password", value: "Change password" },
                     { id: "preferences", value: "Preferences" },
+                    { id: "api-keys", value: "API keys" },
                     { id: "logout", value: "Sign out" },
                 ],
                 on: { onMenuItemClick: function (id) {
                     menu.hide();
                     if (id === "logout") doLogout();
+                    else if (id === "api-keys") openApiKeys();
                     else openAccountDialog(id);
                 } },
             },

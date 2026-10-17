@@ -30,7 +30,7 @@ original database remains available for rollback when you work on a copy.
 
 ## What's added
 
-Six additive migrations in `scripts/migrations/`, applied in numeric
+Seven migrations in `scripts/migrations/`, applied in numeric
 prefix order:
 
 | File | What it adds |
@@ -41,6 +41,7 @@ prefix order:
 | `0004-container-rows-backfill.sql` | Drops NOT NULL on `PartStorageLocation.storageLocation_id`, then backfills a `Loose` row covering existing stock for every part with stock but no PSL row. |
 | `0005-partunit-cleanup.sql` | Drops vestigial reel/cut-tape PartUnit rows (their role is now played by `PartStorageLocation.form`); seeds standard measurement units (Metres, Litres, Kilograms, etc.). |
 | `0006-stock-entry-container-tracking.sql` | Adds nullable `StockEntry.partStorageLocation_id` FK. Lets the system tie each receipt/draw to a specific physical container. |
+| `0007-api-keys.sql` | Adds a separate `ApiKey` table for hashed, revocable, user-owned API credentials. |
 
 Apply the migrations in order, once, to the restored copy. Several are
 idempotent, but `0006` is not: repeating it can fail on a duplicate column,

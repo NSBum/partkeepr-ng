@@ -8,6 +8,7 @@ use axum::{
 use crate::AppState;
 
 pub mod account;
+pub mod api_keys;
 pub mod attachments;
 pub mod auth;
 pub mod categories;
@@ -41,9 +42,14 @@ pub fn routes() -> Router<AppState> {
         .route("/api/login", post(auth::login))
         .route("/api/logout", post(auth::logout))
         .route("/api/me", get(auth::me))
-        .route("/api/me/profile", get(account::profile).put(account::update_profile))
-        .route("/api/me/preferences", get(account::preferences).put(account::update_preferences))
-        .route("/api/me/password", post(account::change_password))
+        .merge(Router::new()
+            .route("/api/me/profile", get(account::profile).put(account::update_profile))
+            .route("/api/me/preferences", get(account::preferences).put(account::update_preferences))
+            .route("/api/me/password", post(account::change_password))
+            .route("/api/me/api-keys", get(api_keys::list).post(api_keys::create))
+            .route("/api/me/api-key-owners", get(api_keys::owners))
+            .route("/api/me/api-keys/:id", patch(api_keys::rename).delete(api_keys::revoke))
+            .route_layer(axum::middleware::from_fn(auth::session_only)))
         .route("/api/version", get(version::version))
         .route("/api/part_categories/tree", get(parts::category_tree))
         .route(

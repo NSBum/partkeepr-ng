@@ -26,6 +26,9 @@ done
 
 echo "=== Releasing ${PACKAGE}-${VERSION} ==="
 
+# Shared release metadata must agree before build, tagging, or publishing.
+python3 scripts/version.py --check
+
 # 1. Clean working tree.
 echo "[pre-flight 1/6] Working tree clean..."
 git diff-index --quiet HEAD -- || { echo "  FAIL: uncommitted changes." >&2; git status --short >&2; exit 1; }

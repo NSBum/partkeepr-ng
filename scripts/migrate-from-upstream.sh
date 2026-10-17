@@ -56,7 +56,7 @@ fi
 
 # Discover migrations relative to this script, regardless of where it's
 # called from. Files are prefixed `NNNN-` and applied in numeric order.
-# Add new migrations with the next prefix (e.g. 0007-foo.sql).
+# Add new migrations with the next prefix (e.g. 0008-foo.sql).
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 MIG_DIR="$SCRIPT_DIR/migrations"
 

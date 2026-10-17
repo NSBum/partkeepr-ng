@@ -24,6 +24,7 @@ pub enum AppError {
     /// but it's available for any future handler that needs to
     /// refuse based on the session.
     Unauthorized(&'static str),
+    Forbidden(&'static str),
     /// 500 with a dynamic message. Used for handler-internal failures
     /// (temp files, subprocess spawn, etc.) where there's no friendlier
     /// shape than "something went wrong, here's the detail".
@@ -45,17 +46,16 @@ impl IntoResponse for AppError {
                 Json(json!({"error": format!("{what} not found")})),
             )
                 .into_response(),
-            AppError::BadRequest(msg) => (
-                StatusCode::BAD_REQUEST,
-                Json(json!({"error": msg})),
-            )
-                .into_response(),
+            AppError::BadRequest(msg) => {
+                (StatusCode::BAD_REQUEST, Json(json!({"error": msg}))).into_response()
+            }
             AppError::Conflict(body) => (StatusCode::CONFLICT, Json(body)).into_response(),
-            AppError::Unauthorized(msg) => (
-                StatusCode::UNAUTHORIZED,
-                Json(json!({"error": msg})),
-            )
-                .into_response(),
+            AppError::Unauthorized(msg) => {
+                (StatusCode::UNAUTHORIZED, Json(json!({"error": msg}))).into_response()
+            }
+            AppError::Forbidden(msg) => {
+                (StatusCode::FORBIDDEN, Json(json!({"error": msg}))).into_response()
+            }
             AppError::Db(e) => {
                 tracing::error!(error = %e, "database error");
                 (

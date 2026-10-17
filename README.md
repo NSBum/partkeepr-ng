@@ -67,11 +67,18 @@ And several additions on top:
   it's in JLC's Basic / Preferred / Extended library, plan PCBA orders.
 - **Brother PT-D410 label printing** via `ptouch-print`.
 
+## Versions and changelog
+
+The running version appears in the header and `/api/version`. See
+[CHANGELOG.md](CHANGELOG.md) for release history and upgrade steps.
+[Versioning](docs/versioning.md) describes version bumps and the existing
+publication workflow.
+
 ## Stack
 
 - **Backend:** Rust + Axum 0.7 + sqlx 0.8 + tokio. ~14 KLOC. Reads and
   writes the upstream 49-table PartKeepr 1.4.0 MariaDB schema verbatim;
-  six small additive migrations introduce new tables and nullable
+  seven small migrations introduce new tables and nullable
   columns for the additions above.
 - **Frontend:** [Webix Standard 11.4.0](https://webix.com) (GPL) +
   vanilla JS. No build step — vendored at `frontend/vendor/webix/`,
@@ -90,7 +97,7 @@ PartKeepr tables are the durable interface. To migrate an existing
 
 1. `mysqldump` your prod database.
 2. Restore on a fresh DB.
-3. Run the six additive migrations in `scripts/migrations/` in numeric
+3. Run the migrations in `scripts/migrations/` in numeric
    order (or use `scripts/migrate-from-upstream.sh`).
 4. Rsync your file storage tree into `$PARTKEEPR_STORAGE_DIR`.
 5. Set env vars (see `backend/.env.example`) and start the `partkeepr-ng` service.
@@ -119,6 +126,12 @@ $EDITOR backend/.env   # set DATABASE_URL + PARTKEEPR_SESSION_SECRET at minimum
 API integrations (Digi-Key, Mouser, TrustedParts, jlcparts) all start
 disabled and need their env vars set. The app boots clean without any
 of them.
+
+## API authentication
+
+Use browser session cookies or revocable API keys for scripts and integrations.
+Create keys from the username menu → **API keys**; see [API key management](docs/api-keys.md)
+for permissions, assignment, expiry, and usage.
 
 ## Native deployment
 
