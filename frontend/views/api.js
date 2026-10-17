@@ -17,6 +17,19 @@ const api = {
         if (!r.ok) throw new Error(`/api/me failed: ${r.status}`);
         return r.json();
     },
+    async accountRequest(section, method = "GET", body) {
+        const response = await fetch(`/api/me/${section}`, {
+            method,
+            ...(body === undefined ? {} : {
+                headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+            }),
+        });
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({}));
+            throw new Error(response.status === 401 ? "Your session has ended. Please sign in again." : error.error || "Could not save account settings.");
+        }
+        return response.status === 204 ? null : response.json();
+    },
     async version() {
         const r = await fetch("/api/version");
         if (!r.ok) throw new Error(`/api/version failed: ${r.status}`);
@@ -33,7 +46,8 @@ const api = {
         return { ok: true, body: await r.json() };
     },
     async logout() {
-        await fetch("/api/logout", { method: "POST" });
+        const response = await fetch("/api/logout", { method: "POST" });
+        if (!response.ok && response.status !== 401) throw new Error("Could not sign out.");
     },
     async categoryTree() {
         const r = await fetch("/api/part_categories/tree");

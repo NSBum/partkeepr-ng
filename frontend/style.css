@@ -499,3 +499,17 @@ button.pk-consume-btn:hover { background: #8c2424; }
     background-position: 0 0, 0 8px, 8px -8px, -8px 0;
     padding: 8px !important;
 }
+
+/* The username is a keyboard-accessible button opening the account menu. */
+.pk-header .pk-account-button .webix_button {
+    background: transparent;
+    color: #f0f4f7;
+    border: 1px solid #708090;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.pk-header .pk-account-button .webix_button:hover,
+.pk-header .pk-account-button .webix_button:focus {
+    background: #3a526b;
+}

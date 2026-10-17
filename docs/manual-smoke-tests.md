@@ -245,3 +245,24 @@ When doing a vanilla-JS file split, after each chunk also verify:
 
 If a chunk introduces a regression, **revert the chunk and re-split
 differently** — don't pile fixes on top.
+
+## Account menu
+
+- At 800px and normal desktop widths, open the username button using mouse and
+  keyboard. Check My profile, Change password, Preferences, and Sign out.
+- My profile shows the signed-in username and role as read-only values. Save a
+  valid email, reopen, and check persistence. Invalid email must not save.
+- Save a start section and a parts limit (50, 100, or 200). The parts limit applies
+  immediately; the start section applies on the next sign-in. Confirm both survive
+  a new browser session. Another account must retain its own preferences.
+- With a disposable test account, reject an incorrect current password, mismatched
+  confirmation, and a new password shorter than 12 characters. A successful change
+  must return to Sign in. The old password and older browser sessions must fail;
+  the new password must work. Never use a real user's password for this test.
+- Sign out from the menu and confirm authenticated API requests return 401.
+
+Account endpoints are `GET/PUT /api/me/profile`, `GET/PUT /api/me/preferences`,
+and `POST /api/me/password`. Each resolves the account from the session, never a
+client-supplied user ID. Password changes rotate the salt and invalidate sessions
+by comparing a password-hash version in the signed cookie with the database.
+Cookies created before this version field was introduced require a fresh login.

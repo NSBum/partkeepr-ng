@@ -58,6 +58,9 @@ pub struct CurrentUser {
     pub is_admin: bool,
     /// Unix-seconds expiry. Re-checked at middleware time.
     pub exp: i64,
+    /// Hash of the stored password hash; password changes revoke old cookies.
+    #[serde(default)]
+    pub password_version: String,
 }
 
 impl CurrentUser {
@@ -92,7 +95,9 @@ impl SessionSigner {
         if s.len() < 16 {
             anyhow::bail!("PARTKEEPR_SESSION_SECRET must be at least 16 chars");
         }
-        Ok(Self { secret: s.into_bytes() })
+        Ok(Self {
+            secret: s.into_bytes(),
+        })
     }
 
     /// Encode `payload` as `base64url(json) + "." + base64url(hmac)`.
@@ -117,8 +122,7 @@ impl SessionSigner {
         let mut mac = <Hmac<Sha256> as hmac::Mac>::new_from_slice(&self.secret).ok()?;
         mac.update(payload_b64.as_bytes());
         let expected_sig = mac.finalize().into_bytes();
-        let expected_b64 =
-            base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(expected_sig);
+        let expected_b64 = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(expected_sig);
         if !bool::from(expected_b64.as_bytes().ct_eq(sig_b64.as_bytes())) {
             return None;
         }
@@ -172,9 +176,40 @@ pub fn verify_fos_password(password: &str, salt: &str, stored_hash_b64: &str) ->
     bool::from(legacy_matches | computed.as_bytes().ct_eq(stored_hash_b64.as_bytes()))
 }
 
+/// New passwords use the previously supported 5000-iteration variant.
+pub fn hash_fos_password(password: &str, salt: &str) -> String {
+    let salted = if salt.is_empty() {
+        password.to_owned()
+    } else {
+        format!("{password}{{{salt}}}")
+    };
+    let mut digest = Sha512::digest(salted.as_bytes()).to_vec();
+    for _ in 1..5000 {
+        let mut h = Sha512::new();
+        h.update(&digest);
+        h.update(salted.as_bytes());
+        digest = h.finalize().to_vec();
+    }
+    base64::engine::general_purpose::STANDARD.encode(digest)
+}
+
+pub fn password_version(stored_hash: &str) -> String {
+    base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(Sha256::digest(stored_hash.as_bytes()))
+}
+
 #[cfg(test)]
 mod password_tests {
-    use super::verify_fos_password;
+    use super::{hash_fos_password, password_version, verify_fos_password};
+
+    #[test]
+    fn password_changes_produce_new_session_versions() {
+        let old = hash_fos_password("old test password", "salt-one");
+        let new = hash_fos_password("new test password", "salt-two");
+        assert!(verify_fos_password("new test password", "salt-two", &new));
+        assert!(!verify_fos_password("old test password", "salt-two", &new));
+        assert_ne!(password_version(&old), password_version(&new));
+        assert_eq!(password_version(&new), password_version(&new));
+    }
 
     #[test]
     fn accepts_original_symfony_encoder_fixtures() {
@@ -234,10 +269,8 @@ pub async fn login(
     Json(req): Json<LoginRequest>,
 ) -> Result<Response, AppError> {
     let username = req.username.trim();
-    if username.is_empty() || req.password.is_empty() {
-        return Err(AppError::BadRequest(
-            "username and password are required",
-        ));
+    if username.is_empty() || req.password.is_empty() || req.password.len() > 1024 {
+        return Err(AppError::BadRequest("username and password are required"));
     }
     let canonical = username.to_lowercase();
 
@@ -312,6 +345,7 @@ pub async fn login(
         username: fos.username.clone(),
         is_admin,
         exp,
+        password_version: password_version(&fos.password),
     };
     let cookie_value = signer.encode(&session)?;
 
@@ -358,9 +392,7 @@ pub async fn logout(jar: CookieJar) -> Response {
 
 /// `GET /api/me` — return the current user. The middleware already
 /// ensured authentication; we just echo the payload back.
-pub async fn me(
-    axum::Extension(user): axum::Extension<CurrentUser>,
-) -> Json<CurrentUserView> {
+pub async fn me(axum::Extension(user): axum::Extension<CurrentUser>) -> Json<CurrentUserView> {
     Json(CurrentUserView {
         user_id: user.user_id,
         username: user.username.clone(),
@@ -379,6 +411,7 @@ pub async fn me(
 /// it via `Extension<CurrentUser>`) or returns 401.
 pub async fn auth_middleware(
     State(signer): State<SessionSigner>,
+    State(pool): State<MySqlPool>,
     jar: CookieJar,
     mut req: Request,
     next: Next,
@@ -403,16 +436,41 @@ pub async fn auth_middleware(
     let cookie = jar.get(SESSION_COOKIE);
     match cookie.and_then(|c| signer.decode(c.value())) {
         Some(user) => {
+            // Resolve the identity/status from the DB, and invalidate all
+            // previous sessions when the password hash changes.
+            let account: Result<Option<(String, String, bool)>, sqlx::Error> = sqlx::query_as(
+                "SELECT f.password, f.username, p.admin FROM FOSUser f \
+                 JOIN PartKeeprUser p ON p.username = f.username \
+                 WHERE f.id = ? AND p.id = ? AND f.enabled = 1 AND f.locked = 0 AND p.active = 1",
+            )
+            .bind(user.fos_user_id)
+            .bind(user.user_id)
+            .fetch_optional(&pool)
+            .await;
+            let (stored, username, is_admin) = match account {
+                Ok(Some(account)) => account,
+                Ok(None) => return AppError::Unauthorized("Please sign in again.").into_response(),
+                Err(error) => return AppError::Db(error).into_response(),
+            };
+            if !bool::from(
+                password_version(&stored)
+                    .as_bytes()
+                    .ct_eq(user.password_version.as_bytes()),
+            ) {
+                return AppError::Unauthorized("Please sign in again.").into_response();
+            }
+            let user = CurrentUser {
+                username,
+                is_admin,
+                ..user
+            };
             req.extensions_mut().insert(user);
             next.run(req).await
         }
-        None => {
-            (
-                StatusCode::UNAUTHORIZED,
-                Json(serde_json::json!({"error": "not authenticated"})),
-            )
-                .into_response()
-        }
+        None => (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error": "not authenticated"})),
+        )
+            .into_response(),
     }
 }
-

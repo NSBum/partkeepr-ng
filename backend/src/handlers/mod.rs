@@ -7,6 +7,7 @@ use axum::{
 
 use crate::AppState;
 
+pub mod account;
 pub mod attachments;
 pub mod auth;
 pub mod categories;
@@ -40,6 +41,9 @@ pub fn routes() -> Router<AppState> {
         .route("/api/login", post(auth::login))
         .route("/api/logout", post(auth::logout))
         .route("/api/me", get(auth::me))
+        .route("/api/me/profile", get(account::profile).put(account::update_profile))
+        .route("/api/me/preferences", get(account::preferences).put(account::update_preferences))
+        .route("/api/me/password", post(account::change_password))
         .route("/api/version", get(version::version))
         .route("/api/part_categories/tree", get(parts::category_tree))
         .route(

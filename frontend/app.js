@@ -24,6 +24,7 @@ let topView = null;
 let currentUser = null;  // set on login so per-user state can key on it
 
 function unmount() {
+    closeAccountViews();
     if (topView) {
         try { topView.destructor(); } catch (_) {}
         topView = null;
@@ -36,6 +37,8 @@ function unmount() {
 
 function mountLogin() {
     unmount();
+    currentUser = null;
+    accountPreferences = { start_section: "categories", parts_limit: 200 };
     topView = webix.ui({
         view: "window",
         id: "pk-login",
@@ -95,16 +98,22 @@ async function doLogin() {
         errLabel.show();
         return;
     }
-    mountShell(result.body.user);
+    await mountShell(result.body.user);
 }
 
 // ============================================================
 //  Main shell — three-column PartManager layout
 // ============================================================
 
-function mountShell(user) {
+async function mountShell(user) {
     unmount();
     currentUser = user;
+    try {
+        accountPreferences = await api.accountRequest("preferences");
+    } catch (e) {
+        accountPreferences = { start_section: "categories", parts_limit: 200 };
+        webix.message({ type: "error", text: escapeHtml(e.message) });
+    }
     topView = webix.ui({
         id: "pk-app",
         rows: [
@@ -126,7 +135,7 @@ function mountShell(user) {
             },
         ],
     });
-    loadCategoryTree();
+    const categoriesLoaded = loadCategoryTree();
     ensureFilterDistributorsLoaded();
     // Restore per-user parts-grid layout (W8c).
     setTimeout(restorePartsGridState, 0);
@@ -167,6 +176,9 @@ function mountShell(user) {
             if (cell) cell.show();
         }
     });
+    await categoriesLoaded;
+    const section = "tab-" + accountPreferences.start_section;
+    if (section !== "tab-categories") $$("pk-left-tabbar").setValue(section);
 }
 
 function buildHeader(user) {
@@ -220,15 +232,26 @@ function buildHeader(user) {
               tooltip: "Open scan-capture overlay. Suppresses browser shortcuts (Alt+digit, Ctrl+T, ...) so HID scanners that emit control chars via Alt+digit don't trigger tab-switching.",
               click: () => openScanCaptureOverlay() },
             { view: "button", value: "🖨 Label", width: 100, click: () => openLabelDialog({ template: "Custom" }) },
-            { view: "label", label: userHtml, minWidth: 80, maxWidth: 160 },
-            { view: "button", id: "pk-sign-out", value: "Sign out", width: 100, click: doLogout },
+            { view: "button", id: "pk-account-button", label: userHtml + ' <span aria-hidden="true">▾</span>',
+              css: "pk-account-button", minWidth: 100, maxWidth: 200,
+              tooltip: "Account menu", click: () => openAccountMenu($$("pk-account-button")),
+              on: { onKeyPress: function (code) {
+                  if (code === 13 || code === 32 || code === 40) {
+                      openAccountMenu(this);
+                      return false;
+                  }
+              } } },
         ],
     };
 }
 
 async function doLogout() {
-    await api.logout();
-    mountLogin();
+    try {
+        await api.logout();
+        mountLogin();
+    } catch (_) {
+        webix.message({ type: "error", text: "Could not sign out. Please try again." });
+    }
 }
 
 // ============================================================
@@ -239,7 +262,7 @@ webix.ready(async function () {
     try {
         const me = await api.me();
         if (me) {
-            mountShell(me);
+            await mountShell(me);
             // Deep-link support: if the URL fragment is "/part/<id>"
             // (the form our printed QR labels encode), route to that
             // part once the shell is up. Loose timing here is fine

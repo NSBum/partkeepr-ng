@@ -1041,7 +1041,7 @@ async function loadParts(opts) {
             predicates: currentParts.predicates,
             footprint_ids: currentParts.footprint_ids,
             category_ids: currentParts.category_ids,
-            limit: 500,
+            limit: accountPreferences.parts_limit,
             offset: 0,
         });
         const grid = $$("pk-parts-grid");
