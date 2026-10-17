@@ -29,3 +29,6 @@ docs/live-schema/partkeepr-data.sql
 **/*.swo
 .DS_Store
 *~
+
+# Logistical files
+cookies.txt
