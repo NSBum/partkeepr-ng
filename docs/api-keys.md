@@ -17,6 +17,12 @@ it cannot be retrieved later. Only a SHA-256 hash and an identifying prefix are
 stored in the database. Closing and reopening the manager lets you create another
 key. No key is saved to browser local storage.
 
+The **Copy** button supports HTTPS clipboard access and falls back to copying
+the selected text on HTTP installations. If the browser blocks both methods,
+the key stays selected for Ctrl+C, Command+C, or the input's Copy context-menu
+action. If you closed the window without saving the key, revoke it and create
+a replacement; the existing key cannot be recovered from its hash.
+
 The manager lists names, prefixes, owners (for administrators), permissions,
 creation and expiry times, last-used times, and active/expired/revoked status.
 Select a row to rename or revoke it. Revocation is permanent; create a new key

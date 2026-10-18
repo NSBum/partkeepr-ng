@@ -500,6 +500,11 @@ button.pk-consume-btn:hover { background: #8c2424; }
     padding: 8px !important;
 }
 
+/* Muted text distinguishes revoked API keys throughout their rows. */
+.webix_dtable .webix_cell.pk-api-key-revoked {
+    color: #929aa3;
+}
+
 /* The username is a keyboard-accessible button opening the account menu. */
 .pk-header .pk-account-button .webix_button {
     background: transparent;

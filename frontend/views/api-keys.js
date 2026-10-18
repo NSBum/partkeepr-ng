@@ -5,6 +5,37 @@ function apiKeyDate(value) {
     return value ? new Date(value + "Z").toLocaleString() : "—";
 }
 
+async function copyApiKey() {
+    const field = $$("pk-api-key-secret-value");
+    if (!field || !field.getValue()) return;
+    const value = field.getValue();
+    try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(value);
+            webix.message("Key copied.");
+            return;
+        }
+    } catch (_) {
+        // Permissions can deny clipboard access even on HTTPS.
+    }
+    // The Clipboard API is unavailable on HTTP LAN installations. Copy from
+    // the visible input inside the modal so Webix keeps focus on it.
+    if ($$("pk-api-key-secret-value") !== field || field.getValue() !== value) return;
+    field.focus();
+    const input = field.getInputNode();
+    input.select();
+    input.setSelectionRange(0, value.length);
+    try {
+        if (document.execCommand("copy")) {
+            webix.message("Key copied.");
+            return;
+        }
+    } catch (_) {
+        // Leave the full value selected for keyboard or context-menu copying.
+    }
+    webix.message("Automatic copying is unavailable. Press Ctrl+C (or Command+C), or use the selected key’s Copy context-menu action.");
+}
+
 async function openApiKeys() {
     const previous = $$("pk-account-dialog");
     if (previous) previous.destructor();
@@ -27,8 +58,9 @@ async function openApiKeys() {
             { view: "icon", icon: "wxi-close", tooltip: "Close", click: () => win.destructor() },
         ] },
         body: { rows: [
-            { view: "template", height: currentUser.is_admin ? 66 : 52, borderless: true,
+            { view: "template", height: currentUser.is_admin ? 86 : 72, borderless: true,
               template: "Use keys for scripts and integrations. Full keys are shown only once. " +
+                "If you no longer have a key, revoke it and create a replacement. " +
                 "Revocation takes effect on the next request." +
                 (currentUser.is_admin ? " As an administrator, you can manage keys for all accounts." : "") },
             { view: "form", id: "pk-api-key-create-form", padding: 10,
@@ -58,19 +90,11 @@ async function openApiKeys() {
                     { view: "text", id: "pk-api-key-secret-value", readonly: true, label: "New key", labelWidth: 65,
                       on: { onFocus: function () { this.getInputNode().select(); } } },
                     { view: "button", id: "pk-api-key-copy", value: "Copy", width: 75,
-                      click: async () => {
-                          const field = $$("pk-api-key-secret-value");
-                          try {
-                              await navigator.clipboard.writeText(field.getValue());
-                              webix.message("Key copied.");
-                          } catch (_) {
-                              field.focus(); field.getInputNode().select();
-                              webix.message("Press Ctrl+C (or Command+C) to copy the selected key.");
-                          }
-                      } },
+                      click: copyApiKey },
                 ] },
             ] },
             { view: "datatable", id: "pk-api-keys-grid", select: "row", rowHeight: 36,
+              scheme: { $init: row => { if (row.revoked_at) row.$css = "pk-api-key-revoked"; } },
               scroll: "xy", data: keys, columns: [
                 { id: "name", header: "Name", fillspace: true, minWidth: 150, template: row => escapeHtml(row.name) },
                 { id: "username", header: "Account", width: 120, hidden: !currentUser.is_admin, template: row => escapeHtml(row.username) },

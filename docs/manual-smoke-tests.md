@@ -273,6 +273,10 @@ Cookies created before this version field was introduced require a fresh login.
 - Sign in and open username → API keys. Create a named read-only key with an
   expiry. Copy the one-time secret, close and reopen, and confirm only its prefix
   remains. List responses must never include a full key or stored hash.
+- Check **Copy** on HTTPS and on HTTP using a LAN address (not localhost).
+  Paste into a temporary text field and confirm the entire secret matches.
+  Deny clipboard permission and check the fallback. If automatic copying is
+  blocked, confirm the full key remains selected and keyboard copying works.
 - Use `Authorization: Bearer <key>` without cookies to GET parts and download a
   file. Confirm `/api/me` identifies the correct owner and no session cookie is
   issued. Check the manager's last-used timestamp after refreshing.
