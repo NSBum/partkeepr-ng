@@ -592,8 +592,12 @@ async fn upload_core(
         .await
         .map_err(|e| AppError::BadRequest(leak(format!("malformed multipart: {e}"))))?
     {
-        // Only files (with filenames) are persisted; ignore other fields.
-        let original_filename = field.file_name().map(|s| s.to_string());
+        // Multipart uploaders also send auxiliary form fields (Webix sends
+        // `upload_fullpath`, for example).  Persist only actual file parts;
+        // otherwise that field becomes a zero-byte "upload" attachment.
+        let Some(original_filename) = field.file_name().map(str::to_owned) else {
+            continue;
+        };
         let content_type = field.content_type().map(|s| s.to_string());
         let bytes: Bytes = field.bytes().await.map_err(|e| {
             AppError::BadRequest(leak(format!("could not read upload body: {e}")))
@@ -601,14 +605,12 @@ async fn upload_core(
         if bytes.is_empty() {
             continue;
         }
-        let original = original_filename.unwrap_or_else(|| "upload".to_string());
-
         let saved_file = match storage::save_upload(
             store,
             kind.name(),
             UploadInput {
                 bytes,
-                original_filename: Some(original.clone()),
+                original_filename: Some(original_filename.clone()),
                 content_type,
             },
         )
