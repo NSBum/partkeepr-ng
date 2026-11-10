@@ -66,7 +66,12 @@ function buildAttachmentsSection({ tableId, uploaderId, kind, getParentId }) {
                         css: "pk-btn-add",
                         multiple: true,
                         link: tableId,
-                        autosend: false,
+                        // A selected file must be posted immediately.  With
+                        // autosend disabled Webix only adds its local file
+                        // metadata to the linked grid; no code subsequently
+                        // calls send(), so the file is lost when the editor is
+                        // saved or closed.
+                        autosend: true,
                         width: 130,
                         on: {
                             onBeforeFileAdd: function () {
@@ -139,7 +144,10 @@ function buildAttachmentsSection({ tableId, uploaderId, kind, getParentId }) {
                         fillspace: true,
                         template: function (o) {
                             if (!o.id) return "";
-                            const name = escapeHtml(o.originalname || o.filename || "");
+                            // `name` is present while Webix is transferring a
+                            // newly-selected file.  The server rows use
+                            // `originalname`, so support both states.
+                            const name = escapeHtml(o.originalname || o.name || o.filename || "");
                             return `<a href="/files/${kind}/${o.id}" target="_blank">${name}</a>`;
                         },
                     },
