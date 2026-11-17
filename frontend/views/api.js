@@ -268,6 +268,14 @@ const api = {
         if (!r.ok) throw new Error(`create storage location failed: ${r.status} ${await r.text()}`);
         return r.json();
     },
+    async createStorageLocationsBulk(body) {
+        const r = await fetch("/api/storage_locations/bulk", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+        });
+        if (!r.ok) throw new Error(`bulk create storage locations failed: ${r.status} ${await r.text()}`);
+        return r.json();
+    },
     async updateStorageLocation(id, body) {
         const r = await fetch(`/api/storage_locations/${id}`, {
             method: "PUT", headers: { "Content-Type": "application/json" },

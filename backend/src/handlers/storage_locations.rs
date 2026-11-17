@@ -314,6 +314,19 @@ pub struct LocationCreate {
     pub name: String,
 }
 
+/// Request for creating a numbered run of drawers in one storage category.
+/// `pad_length: Some(3)` turns prefix "A" and number 7 into "A007".
+#[derive(Debug, Deserialize)]
+pub struct LocationBulkCreate {
+    pub category_id: i32,
+    #[serde(default)]
+    pub name_prefix: String,
+    pub start: i32,
+    pub end: i32,
+    #[serde(default)]
+    pub pad_length: Option<u8>,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct LocationUpdate {
     pub name: String,
@@ -348,6 +361,59 @@ pub async fn loc_create(
         .execute(&pool)
         .await?;
     Ok(Json(json!({"id": res.last_insert_id() as i32})))
+}
+
+/// Atomically create a sequentially named group of storage locations.
+/// Keeping this server-side avoids partially-created batches when a request
+/// fails partway through, and avoids a round-trip for every drawer.
+pub async fn loc_create_bulk(
+    State(pool): State<MySqlPool>,
+    Json(req): Json<LocationBulkCreate>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    const MAX_BATCH_SIZE: i32 = 1_000;
+
+    if req.end < req.start {
+        return Err(AppError::BadRequest("end must be greater than or equal to start"));
+    }
+    let count = req.end.checked_sub(req.start)
+        .and_then(|n| n.checked_add(1))
+        .ok_or(AppError::BadRequest("invalid start/end range"))?;
+    if count > MAX_BATCH_SIZE {
+        return Err(AppError::BadRequest("a batch may contain at most 1000 locations"));
+    }
+    if let Some(width) = req.pad_length {
+        if width == 0 || width > 12 {
+            return Err(AppError::BadRequest("pad_length must be between 1 and 12"));
+        }
+    }
+
+    let prefix = req.name_prefix.trim();
+    let mut tx = pool.begin().await?;
+    let parent_exists: Option<(i32,)> =
+        sqlx::query_as("SELECT id FROM StorageLocationCategory WHERE id = ?")
+            .bind(req.category_id)
+            .fetch_optional(&mut *tx)
+            .await?;
+    if parent_exists.is_none() {
+        return Err(AppError::BadRequest("parent category does not exist"));
+    }
+
+    let mut ids = Vec::with_capacity(count as usize);
+    for number in req.start..=req.end {
+        let name = match req.pad_length {
+            Some(width) => format!("{prefix}{number:0width$}", width = width as usize),
+            None => format!("{prefix}{number}"),
+        };
+        let res = sqlx::query("INSERT INTO StorageLocation (category_id, name) VALUES (?, ?)")
+            .bind(req.category_id)
+            .bind(name)
+            .execute(&mut *tx)
+            .await?;
+        ids.push(res.last_insert_id() as i32);
+    }
+
+    tx.commit().await?;
+    Ok(Json(json!({"ids": ids, "count": count})))
 }
 
 pub async fn loc_update(

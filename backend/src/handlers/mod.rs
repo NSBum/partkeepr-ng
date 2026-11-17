@@ -95,6 +95,10 @@ pub fn routes() -> Router<AppState> {
             get(storage_locations::loc_list).post(storage_locations::loc_create),
         )
         .route(
+            "/api/storage_locations/bulk",
+            post(storage_locations::loc_create_bulk),
+        )
+        .route(
             "/api/storage_locations/:id",
             axum::routing::put(storage_locations::loc_update)
                 .delete(storage_locations::loc_delete),

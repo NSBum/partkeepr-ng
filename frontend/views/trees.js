@@ -468,11 +468,12 @@ function buildStorageActionToolbar() {
         css: "pk-pane-toolbar",
         height: 38,
         cols: [
-            { view: "button", value: "+ Sub", css: "pk-btn-add", width: 60, click: openStorageCategoryAdd },
-            { view: "button", value: "+ Loc", css: "pk-btn-add", width: 60, click: openStorageLocationAdd },
-            { view: "button", value: "✎", css: "webix_primary", width: 36, click: openStorageEdit },
-            { view: "button", value: "Move…", width: 70, click: openStorageMove },
-            { view: "button", value: "🗑", css: "pk-btn-remove", width: 36, click: confirmStorageDelete },
+            { view: "button", value: "+Sub", css: "pk-btn-add", width: 45, click: openStorageCategoryAdd },
+            { view: "button", value: "+Loc", css: "pk-btn-add", width: 45, click: openStorageLocationAdd },
+            { view: "button", value: "+Many", css: "pk-btn-add", width: 52, click: openStorageMultiCreate },
+            { view: "button", value: "✎", css: "webix_primary", width: 32, click: openStorageEdit },
+            { view: "button", value: "Move", width: 52, click: openStorageMove },
+            { view: "button", value: "🗑", css: "pk-btn-remove", width: 32, click: confirmStorageDelete },
             {},
         ],
     };
@@ -555,6 +556,117 @@ function openStorageLocationAdd() {
         return;
     }
     openStorageLocationEditor("new", null, parentId);
+}
+
+function openStorageMultiCreate() {
+    const parentId = getStorageContextCategoryId();
+    if (parentId == null) {
+        webix.message({ type: "error", text: "Select a storage folder first." });
+        return;
+    }
+
+    const sampleNames = (values) => {
+        const start = Number(values.start);
+        const end = Number(values.end);
+        const prefix = values.name_prefix || "";
+        const padded = !!values.pad_zeroes;
+        const width = Math.max(1, Number(values.pad_length) || 1);
+        if (!Number.isInteger(start) || !Number.isInteger(end) || end < start) {
+            return "Enter a valid start and end range.";
+        }
+        const shownEnd = Math.min(end, start + 99);
+        const names = [];
+        for (let n = start; n <= shownEnd; n++) {
+            names.push(prefix + (padded ? String(n).padStart(width, "0") : String(n)));
+        }
+        if (shownEnd < end) names.push(`… and ${end - shownEnd} more`);
+        return names.join("<br>");
+    };
+    const refreshSample = () => {
+        const form = $$("pk-sloc-multi-form");
+        const sample = $$("pk-sloc-multi-sample");
+        const length = $$("pk-sloc-multi-pad-length");
+        if (!form || !sample || !length) return;
+        const values = form.getValues();
+        length.define("disabled", !values.pad_zeroes);
+        length.refresh();
+        sample.setHTML(sampleNames(values));
+    };
+
+    webix.ui({
+        view: "window",
+        id: "pk-sloc-multi",
+        modal: true,
+        position: "center",
+        width: 600,
+        height: 510,
+        head: "Multi-create storage locations",
+        body: {
+            rows: [
+                {
+                    view: "form",
+                    id: "pk-sloc-multi-form",
+                    elements: [
+                        { view: "text", name: "name_prefix", label: "Name prefix", labelWidth: 130,
+                          on: { onChange: refreshSample } },
+                        { cols: [
+                            { view: "counter", name: "start", label: "Start", labelWidth: 130, value: 1,
+                              min: 0, on: { onChange: refreshSample } },
+                            { view: "counter", name: "end", label: "End", labelWidth: 50, value: 10,
+                              min: 0, on: { onChange: refreshSample } },
+                        ] },
+                        { cols: [
+                            { view: "checkbox", name: "pad_zeroes", labelRight: "Prefix with zeroes", width: 300,
+                              on: { onChange: refreshSample } },
+                            { view: "counter", id: "pk-sloc-multi-pad-length", name: "pad_length", label: "Length",
+                              labelWidth: 60, value: 2, min: 1, max: 12, disabled: true,
+                              on: { onChange: refreshSample } },
+                        ] },
+                        { view: "label", label: "Sample", css: "pk-pane-title" },
+                        { view: "template", id: "pk-sloc-multi-sample", borderless: false, height: 265,
+                          template: "" },
+                    ],
+                },
+                {
+                    view: "toolbar", css: "pk-dialog-actions", height: 50,
+                    cols: [
+                        {},
+                        { view: "button", value: "Cancel", width: 100, click: () => $$("pk-sloc-multi").close() },
+                        { view: "button", value: "Create locations", width: 150, css: "pk-btn-add", click: async () => {
+                            const values = $$("pk-sloc-multi-form").getValues();
+                            const start = Number(values.start);
+                            const end = Number(values.end);
+                            if (!Number.isInteger(start) || !Number.isInteger(end) || end < start) {
+                                webix.message({ type: "error", text: "End must be greater than or equal to start." });
+                                return;
+                            }
+                            if (end - start + 1 > 1000) {
+                                webix.message({ type: "error", text: "Create at most 1,000 locations at a time." });
+                                return;
+                            }
+                            try {
+                                const result = await api.createStorageLocationsBulk({
+                                    category_id: parentId,
+                                    name_prefix: values.name_prefix || "",
+                                    start,
+                                    end,
+                                    pad_length: values.pad_zeroes ? Number(values.pad_length) : null,
+                                });
+                                const lastId = result.ids[result.ids.length - 1];
+                                lookupsCache = null;
+                                $$("pk-sloc-multi").close();
+                                await reloadStorageTreeAndGrid("sloc:" + lastId);
+                                webix.message({ type: "success", text: `Created ${result.count} storage locations.` });
+                            } catch (e) {
+                                webix.message({ type: "error", text: "Create failed: " + (e.message || e) });
+                            }
+                        } },
+                    ],
+                },
+            ],
+        },
+    }).show();
+    refreshSample();
 }
 
 async function openStorageEdit() {
