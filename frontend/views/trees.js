@@ -691,6 +691,11 @@ function openStorageLocationEditor(mode, existing, parentCategoryId) {
                                         });
                                         savedId = created.id;
                                     }
+                                    // The part editor reuses its lookup data for the
+                                    // current session. A location add/rename must
+                                    // invalidate it so the next Classification picker
+                                    // reflects this save.
+                                    lookupsCache = null;
                                     $$("pk-sloc-editor").close();
                                     await reloadStorageTreeAndGrid("sloc:" + savedId);
                                     webix.message({ text: "Saved", type: "success" });
@@ -755,6 +760,8 @@ function confirmStorageDelete() {
                     await api.deleteStorageCategory(node.category_id);
                 } else {
                     await api.deleteStorageLocation(node.location_id);
+                    // Remove deleted drawers from the next part-editor picker.
+                    lookupsCache = null;
                 }
                 await reloadStorageTreeAndGrid();
                 webix.message({ text: `${what} deleted`, type: "success" });
@@ -789,6 +796,9 @@ function openStorageMove() {
                 await reloadStorageTreeAndGrid("scat:" + node.category_id);
             } else {
                 await api.moveStorageLocation(node.location_id, newCatId);
+                // Keep the cached picker data (including its category metadata)
+                // synchronized with the storage tree.
+                lookupsCache = null;
                 await reloadStorageTreeAndGrid("sloc:" + node.location_id);
             }
         },
