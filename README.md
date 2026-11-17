@@ -139,6 +139,53 @@ Docker is optional. The app and MariaDB can run as persistent systemd user
 services; see [native deployment](docs/native-systemd.md) for service templates,
 configuration, backups, and an isolated MariaDB setup alongside existing MySQL.
 
+## Updating an existing installation
+
+Read [CHANGELOG.md](CHANGELOG.md) before updating and take a backup first.
+In particular, a release may introduce a numbered SQL migration. Apply each new
+migration exactly once, after backing up the database, before starting the new
+application version. Do not re-run migrations already applied to an existing
+partkeepr-ng database.
+
+For the native systemd deployment described above, update the checkout and
+rebuild the backend whenever a Rust/API change is included:
+
+```bash
+cd ~/partkeepr-ng
+git pull --ff-only
+
+# Review CHANGELOG.md and apply any new scripts/migrations/*.sql first.
+cargo +stable build --locked --release --bin partkeepr-api
+
+# The running service uses this copied binary, not target/release directly.
+systemctl --user stop partkeepr-ng
+install -m 0755 target/release/partkeepr-api local-install/native/bin/partkeepr-api
+systemctl --user start partkeepr-ng
+
+# Confirm the new server started successfully.
+systemctl --user --no-pager status partkeepr-ng
+curl --fail http://127.0.0.1:8082/health
+```
+
+The frontend has no build step: it is static JavaScript, CSS, and assets. If
+`PARTKEEPR_FRONTEND_DIR` in `local-install/native/app.env` points to the
+checkout's `frontend/` directory (the supplied native configuration does),
+`git pull` updates it immediately and no service restart is needed for a
+frontend-only change. Hard-refresh the browser if it still has old JavaScript
+cached.
+
+If that setting points to a separately deployed frontend directory, copy the
+updated files there after pulling instead:
+
+```bash
+cd ~/partkeepr-ng
+rsync -a frontend/ /path/from/PARTKEEPR_FRONTEND_DIR/
+```
+
+Use the actual configured path in place of the placeholder. A backend restart
+is still required whenever the update changes Rust code, even if it also
+contains frontend changes.
+
 ## Optional features — provisioning
 
 ### LCSC / JLCPCB cross-reference (jlcparts)
