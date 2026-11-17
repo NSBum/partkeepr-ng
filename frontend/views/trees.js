@@ -503,11 +503,21 @@ async function reloadStorageTreeAndGrid(reselectId) {
     try {
         const arr = await api.storageTree();
         const tree = $$("pk-storage-tree");
+        // `clearAll()` discards each folder's open state. Preserve it
+        // before parsing the refreshed tree so creating several drawers
+        // in one cabinet does not repeatedly send the operator back to
+        // the root.
+        const openIds = tree.getOpenItems();
         tree.clearAll();
         tree.parse(arr.map(transformStorageNode));
+        for (const id of openIds) {
+            if (tree.exists(id)) tree.open(id, true);
+        }
         if (reselectId && tree.exists(reselectId)) {
+            // The newly created location is a leaf, so use recursive
+            // opening to reveal every parent folder before selecting it.
+            tree.open(reselectId, true);
             tree.select(reselectId);
-            tree.open(reselectId);
         } else if (arr.length) {
             tree.open(transformStorageNode(arr[0]).id);
         }
