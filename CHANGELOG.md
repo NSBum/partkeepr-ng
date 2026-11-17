@@ -5,6 +5,30 @@ feature releases increment MINOR and fixes alone increment PATCH. Git commits
 between releases do not each require a version bump. See
 [versioning and release notes](docs/versioning.md) for the workflow.
 
+## [0.3.0] - 2026-11-17
+
+### Added
+
+- Bulk storage-location creation: select a storage folder, choose **+Many**,
+  enter a prefix and numeric range, optionally pad numbers with zeroes, and
+  review the live name sample before creating up to 1,000 locations in one
+  atomic operation.
+- README instructions for updating a native deployment, including backend
+  rebuild/restart steps and the separate static-frontend update path.
+
+### Fixed
+
+- Storage locations created or renamed during a session now appear in the
+  part Classification location picker without requiring an application reload.
+- Refreshing the storage tree after a location change preserves expanded
+  folders and reveals the newly created location instead of returning to the
+  root.
+
+### Upgrade
+
+- No database migration is required. Deploy both the rebuilt backend and the
+  `frontend/` files, then hard-refresh browsers to load the new interface.
+
 ## [0.2.0] - 2026-10-17
 
 ### Added
